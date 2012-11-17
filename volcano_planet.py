@@ -208,14 +208,14 @@ planet.set_shell_temperature(0, init_core_temp)
 planet.set_shell_temperature(num_shells - 1, 0)
 
 #Set max simulation time
-max_time = 100
+max_time = 10000
 
 #Track time-evolved temperature of certain shells
 inner_core_shell = int(num_shells * planet.inner_core)
 outer_core_shell = int(num_shells * planet.outer_core)
 inner_mantle_shell = int(num_shells * planet.inner_mantle)
 outer_mantle_shell = int(num_shells * planet.outer_mantle)
-crust_shell = int(num_shells - 1)
+crust_shell = int(num_shells - 2)
 
 #Open file for temperature tracking
 file_temp_track = open("temp_track.txt", "w")
@@ -227,7 +227,7 @@ for i in range (0, max_time):
         file_temp_track.write(s)
         
         change = planet.compute_init_temperature(1)
-
+file_temp_track.close()
         
 
 #Check initialized parameters and save to file
@@ -271,5 +271,17 @@ plot(temps[:,0] , temps[:,2])
 xlabel("Time (arb.)")
 ylabel("Temp (arb.)")
 title("Time Evolved Temperature (Outer Core)")
+show()
+
+plot(temps[:,0] , temps[:,3])
+xlabel("Time (arb.)")
+ylabel("Temp (arb.)")
+title("Time Evolved Temperature (Inner Mantle)")
+show()
+
+plot(temps[:,0] , temps[:,4])
+xlabel("Time (arb.)")
+ylabel("Temp (arb.)")
+title("Time Evolved Temperature (Crust)")
 show()
 
