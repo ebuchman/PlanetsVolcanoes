@@ -4,6 +4,9 @@ from scipy import *
 from numpy import *
 from pylab import *
 
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+
 LOCK_BOUNDARIES = True
 
 #Spherical Shell class represents a spherically symmetrical segment of the planet
@@ -73,7 +76,7 @@ class Planet:
         #Initialize with empty (parameterless) shells
         def __init__(self, num_shells, radius):
                 #Compute thickness of shells in the planet
-                shell_thickness = radius / float(num_shells)
+                self.shell_thickness = radius / float(num_shells)
                 
                 #Planet needs at least two shells
                 if (num_shells < 2):
@@ -82,7 +85,7 @@ class Planet:
                 #Initialize an array of shells to fill the planet
                 #Shells initialized with T=0, R=i*dr, k=0, rho=0 
                 for i in range(0, num_shells):
-                        new_shell = Shell(temp = 0, r = shell_thickness * i, conductivity = 0, rho = 1, thickness = shell_thickness)
+                        new_shell = Shell(temp = 0, r = self.shell_thickness * i, conductivity = 0, rho = 1, thickness = self.shell_thickness)
                         self.shells.append(new_shell)
                 
                 #Store the data
@@ -93,7 +96,7 @@ class Planet:
         #Target_shell should be the index number of the shell you want (in the shells[] array)
         #Squared_change accumulates how much the temperature overall changed in a given round of recursions
         #Meant to be called with initial target_shell at 0 (i.e. goes from core outwards)
-        def compute_init_temperature(self, target_shell, squared_change = 0):
+        def compute_temperature(self, target_shell, squared_change = 0):
                 
                 #Set inner and outer shell indices
                 inner_shell = target_shell - 1
@@ -121,10 +124,10 @@ class Planet:
                 
                 #Recur the function outward
                 if (outer_shell < self.num_shells):
-                        squared_change += self.compute_init_temperature(outer_shell)
+                        squared_change += self.compute_temperature(outer_shell)
                 
                 #This is used in the main loop to determine when the temperature has equilibrated
-                return squared_change
+                return new_temperature
         
         #Compute the densities and conductivities of the shells
         def compute_density_and_conductivity(self):
@@ -202,7 +205,7 @@ planet.set_shell_temperature(0, init_core_temp)
 planet.set_shell_temperature(num_shells - 1, 0)
 
 #Set max simulation time
-max_time = 10000
+max_time = 50000
 
 #Track time-evolved temperature of certain shells
 inner_core_shell = int(num_shells * planet.inner_core)
@@ -214,44 +217,75 @@ crust_shell = int(num_shells - 2)
 #Open file for temperature tracking
 file_temp_track = open("temp_track.txt", "w")
 
+
+#Open file for time tracking of all parameters
+time_track = open('time_track.txt', 'w')
+
+
+T_data = zeros((num_shells, max_time))
+
 #Iteratively compute the temperature
 for i in range (0, max_time):
         #Track temperature of specific shells
         s = str(i) + " " + str(planet.get_shell_temperature(inner_core_shell)) + " " +str(planet.get_shell_temperature(outer_core_shell)) + " " + str(planet.get_shell_temperature(inner_mantle_shell)) + " " + str(planet.get_shell_temperature(outer_mantle_shell)) + " " + str(planet.get_shell_temperature(crust_shell)) + "\n"
+        
         file_temp_track.write(s)
         
-        change = planet.compute_init_temperature(1)
+        T_data[:,i] = np.asarray([planet.get_shell_temperature(j) for j in xrange(num_shells)])
+
+        
+        change = planet.compute_temperature(1)
 file_temp_track.close()
         
 
 #Check initialized parameters and save to file
-file_init_params = open("init_params.txt", "w")
+file_init_params = open("final_params.txt", "w")
 for i in range(0, num_shells):
         s = str(planet.get_shell_radius(i)) + " " + str(planet.get_shell_temperature(i)) + " " + str(planet.get_shell_density(i)) + " " + str(planet.get_shell_conductivity(i)) +  "\n"
         file_init_params.write(s)
 file_init_params.close()
 
 #Plot initialized parameters
-params = loadtxt("init_params.txt")
+params = loadtxt("final_params.txt")
 
-plot(params[:,0] , params[:,1])
-xlabel("Radius (Earth radii)")
-ylabel("Temp (arb.)")
-title("Radial Initial Temperature Profile")
-show()
+ax1 = plt.subplot(5, 1, 1)
+plt.plot(params[:,0] , params[:,1])
+ax1.set_xlabel("Radius (Earth radii)")
+ax1.set_ylabel("Temp (arb.)")
+ax1.set_title("Radial Initial Temperature Profile")
 
-plot(params[:,0] , params[:,2])
-xlabel("Radius (Earth radii)")
-ylabel("Density (arb.)")
-title("Radial Initial Density Profile")
-show()
+ax2 = plt.subplot(5,1,3)
+plt.plot(params[:,0] , params[:,2])
+ax2.set_xlabel("Radius (Earth radii)")
+ax2.set_ylabel("Density (arb.)")
+ax2.set_title("Radial Initial Density Profile")
 
-plot(params[:,0] , params[:,3])
-xlabel("Radius (Earth radii)")
-ylabel("Conductivity (arb.)")
-title("Radial Initial Conductivity Profile")
-show()
+ax3 = plt.subplot(5,1,5)
+plt.plot(params[:,0] , params[:,3])
+ax3.set_xlabel("Radius (Earth radii)")
+ax3.set_ylabel("Conductivity (arb.)")
+ax3.set_title("Radial Initial Conductivity Profile")
 
+plt.show()
+
+
+radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
+time = asarray(range(max_time))
+
+plt.imshow(T_data, aspect = 'auto')
+plt.show()
+quit()
+
+radii, time = meshgrid(radii, time)
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+
+surf = ax.plot_surface(radii, time, T_data)
+plt.show()
+
+
+'''
 #Plot temperatures of tracked shells
 temps = loadtxt("temp_track.txt")
 
@@ -278,4 +312,4 @@ xlabel("Time (arb.)")
 ylabel("Temp (arb.)")
 title("Time Evolved Temperature (Crust)")
 show()
-
+'''
