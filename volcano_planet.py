@@ -4,6 +4,8 @@ from scipy import *
 from numpy import *
 from pylab import *
 
+LOCK_BOUNDARIES = True
+
 #Spherical Shell class represents a spherically symmetrical segment of the planet
 class Shell:
         
@@ -14,7 +16,7 @@ class Shell:
         thickness = 0
 
         #Initialize a spherical shell for the planet
-        def __init__(self, temperature, radius, conductivity, density, thickness):
+        def __init__(self, temp = temperature, r = radius, conductivity = conductivity, rho = density, thickness = thickness):
                 self.temperature = temperature
                 self.radius = radius
                 self.conductivity = conductivity
@@ -80,7 +82,7 @@ class Planet:
                 #Initialize an array of shells to fill the planet
                 #Shells initialized with T=0, R=i*dr, k=0, rho=0 
                 for i in range(0, num_shells):
-                        new_shell = Shell(0, shell_thickness * i, 0, 1, shell_thickness)
+                        new_shell = Shell(temp = 0, r = shell_thickness * i, conduictivity = 0, rho = 1, thickness = shell_thickness)
                         self.shells.append(new_shell)
                 
                 #Store the data
@@ -98,32 +100,21 @@ class Planet:
                 outer_shell = target_shell + 1
                 
                 #Check outer boundary
-                if (outer_shell >= self.num_shells):
-                        #Compute new temperature as an average of the inner neighbour and self
-                        #self_weighting = 4*pi*pow(self.shells[target_shell].get_radius(), 2)
-                        #inner_weighting = 4*pi*pow(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius(), 2)
-                        #norm_factor = (1.0/(self_weighting + inner_weighting))
-                        #new_temperature = norm_factor*(inner_weighting*self.shells[inner_shell].get_temperature() + self_weighting*self.shells[target_shell].get_temperature())
-                        
+                if (outer_shell >= self.num_shells and LOCK_BOUNDARIES):
                         #Don't change the temperature at outer edge (it's a boundary condition)
                         new_temperature = self.shells[target_shell].get_temperature()
                 #Check inner boundary
-                elif (target_shell == 0):
-                        #Compute new temperature as an average of the outer neighbour and self
-                        #outer_weighting = 4*pi*pow(self.shells[outer_shell].get_radius(), 2)
-                        #self_weighting = 4*pi*pow(self.shells[target_shell].get_thickness() + self.shells[target_shell].get_radius(), 2)
-                        #norm_factor = (1.0/(self_weighting + outer_weighting))
-                        #new_temperature =norm_factor*(self_weighting*self.shells[target_shell].get_temperature() + outer_weighting*self.shells[#outer_shell].get_temperature())
+                elif (target_shell == 0 and LOCK_BOUNDARIES):
                         new_temperature = self.shells[target_shell].get_temperature()
-                else:
+                else: 
                         #Compute new temperature as a weighted average of the neighbours
-                        inner_weighting = 4*pi*pow(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius(), 2)
-                        outer_weighting = 4*pi*pow(self.shells[outer_shell].get_radius(), 2)
+                        inner_weighting = 4*pi*(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius())**2
+                        outer_weighting = 4*pi*(self.shells[outer_shell].get_radius())**2
                         norm_factor = (1.0/(inner_weighting + outer_weighting))
                         new_temperature = norm_factor*(inner_weighting*self.shells[inner_shell].get_temperature() + outer_weighting*self.shells[outer_shell].get_temperature())
                 
                 #Accumulate the temperature change
-                squared_change += pow(self.shells[target_shell].get_temperature() - new_temperature, 2)
+                squared_change += (self.shells[target_shell].get_temperature() - new_temperature)**2
                 
                 #Set the new temperature
                 self.shells[target_shell].set_temperature(new_temperature)
