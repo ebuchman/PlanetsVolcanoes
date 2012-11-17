@@ -8,16 +8,10 @@ LOCK_BOUNDARIES = True
 
 #Spherical Shell class represents a spherically symmetrical segment of the planet
 class Shell:
-        
-        temperature = 0
-        radius = 0
-        conductivity = 0
-        density = 0
-        thickness = 0
 
         #Initialize a spherical shell for the planet
-        def __init__(self, temp = temperature, r = radius, conductivity = conductivity, rho = density, thickness = thickness):
-                self.temperature = temp
+        def __init__(self, temp, r, conductivity, rho, thickness):
+                self._temperature = temp
                 self.radius = r
                 self.conductivity = conductivity
                 self.density = rho
