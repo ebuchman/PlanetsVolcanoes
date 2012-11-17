@@ -66,11 +66,17 @@ class Planet:
         num_shells = 0
         radius = 0
 
-
+        #Set boundaries for planetary regions (upper bounds of regions in terms of Earth radii)
+        inner_core = 0.191
+        outer_core = 0.544
+        inner_mantle = 0.882
+        outer_mantle = .995
+        crust = 1.0
+        atmosphere =1.002
         
         #Initialize with empty (parameterless) shells
         def __init__(self, num_shells, radius):
-                #Compute thickness of shells in the planet
+                #Compute shell thickness (uniform)
                 shell_thickness = radius / float(num_shells)
                 
                 #Planet needs at least two shells
@@ -80,7 +86,7 @@ class Planet:
                 #Initialize an array of shells to fill the planet
                 #Shells initialized with T=0, R=i*dr, k=0, rho=0 
                 for i in range(0, num_shells):
-                        new_shell = Shell(0, shell_thickness * i, 0, 1, shell_thickness)
+                        new_shell = Shell(0, shell_thickness*i, 0, 1, shell_thickness)
                         self.shells.append(new_shell)
                 
                 #Store the data
@@ -117,8 +123,8 @@ class Planet:
                         new_temperature = self.shells[target_shell].get_temperature()
                 else:
                         #Compute new temperature as a weighted average of the neighbours
-                        inner_weighting = 4*pi*pow(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius(), 2)
-                        outer_weighting = 4*pi*pow(self.shells[outer_shell].get_radius(), 2)
+                        inner_weighting = self.shells[inner_shell].get_conductivity()*4*pi*pow(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius(), 2)
+                        outer_weighting = self.shells[outer_shell].get_conductivity()*4*pi*pow(self.shells[outer_shell].get_radius(), 2)
                         norm_factor = (1.0/(inner_weighting + outer_weighting))
                         new_temperature = norm_factor*(inner_weighting*self.shells[inner_shell].get_temperature() + outer_weighting*self.shells[outer_shell].get_temperature())
                 
@@ -137,13 +143,6 @@ class Planet:
         
         #Compute the densities and conductivities of the shells
         def compute_density_and_conductivity(self):
-                #Set boundaries for planetary regions (upper bounds of regions in terms of Earth radii)
-                inner_core = 0.191
-                outer_core = 0.544
-                inner_mantle = 0.882
-                outer_mantle = .995
-                crust = 1.0
-                atmosphere =1.002
                 
                 #Iterate through each shell
                 for shell in self.shells:
@@ -151,21 +150,21 @@ class Planet:
                         region = shell.get_radius() / self.radius
                         
                         #Apply a different function depending which region of the planet you're in
-                        if (region < inner_core):
+                        if (region < self.inner_core):
                                shell.set_density(13.1 - 0.00035*shell.get_radius())
-                               shell.set_conductivity(200)
-                        elif (region < outer_core):
+                               shell.set_conductivity(15)
+                        elif (region < self.outer_core):
                                shell.set_density(12.2 - 0.001*shell.get_radius())
-                               shell.set_conductivity(5)
-                        elif (region < inner_mantle):
+                               shell.set_conductivity(10 - 0.006*(shell.get_radius() - 0.191))
+                        elif (region < self.inner_mantle):
                                shell.set_density(5.6 - 0.00055*shell.get_radius())
                                shell.set_conductivity(5)
-                        elif (region < outer_mantle):
+                        elif (region < self.outer_mantle):
                                 shell.set_density(4.4 - 0.0013*shell.get_radius())
-                                shell.set_conductivity(5)
-                        elif (region < crust):
+                                shell.set_conductivity(4.5)
+                        elif (region < self.crust):
                                 shell.set_density(2.9 - 0.023*shell.get_radius())
-                                shell.set_conductivity(6.5)
+                                shell.set_conductivity(1.74)
                         else:
                                 shell.set_density(0.00121 * exp((shell.get_radius() - 1)/0.0012543))
                                 shell.set_conductivity(0.025)
@@ -184,6 +183,10 @@ class Planet:
         #Get a shell conductivity
         def get_shell_conductivity(self, index):
                 return self.shells[index].get_conductivity()
+
+        #Get a shell radius
+        def get_shell_radius(self, index):
+                return self.shells[index].get_radius()
         
         
 
@@ -192,13 +195,13 @@ class Planet:
 #******Simulate the Planet******#
 
 #Set how many shells we want
-num_shells = 100
+num_shells = 800
 
 #Set radius of the planet (in Earth radii)
 radius = 1
 
 #Create a planet
-planet = Planet(num_shells, radius) 
+planet = Planet(num_shells, radius)
 
 #Set density of planet
 planet.compute_density_and_conductivity()
@@ -212,16 +215,20 @@ for i in range (0, num_shells - 2):
 planet.set_shell_temperature(0, init_core_temp)
 planet.set_shell_temperature(num_shells - 1, 0)
 
+#Set max simulation time
+max_time = 5000
+
+#Track time-evolved temperature of certain shells
+core_shell = int(num_shells * planet.inner_core) 
+
 #Iteratively compute the temperature
-change = 10000
-change_cond = 1000
-while(change > change_cond):
+for i in range (0, max_time):
         change = planet.compute_init_temperature(1)
 
 #Check initialized parameters and save to file
 file_init_params = open("init_params.txt", "w")
 for i in range(0, num_shells):
-        s = str(i) + " " + str(planet.get_shell_temperature(i)) + " " + str(planet.get_shell_density(i)) + " " + str(planet.get_shell_conductivity(i)) +  "\n"
+        s = str(planet.get_shell_radius(i)) + " " + str(planet.get_shell_temperature(i)) + " " + str(planet.get_shell_density(i)) + " " + str(planet.get_shell_conductivity(i)) +  "\n"
         file_init_params.write(s)
 file_init_params.close()
 
@@ -229,19 +236,19 @@ file_init_params.close()
 params = loadtxt("init_params.txt")
 
 plot(params[:,0] , params[:,1])
-xlabel("shell (#)")
+xlabel("Radius (Earth radii)")
 ylabel("Temp (arb.)")
 title("Radial Initial Temperature Profile")
 show()
 
 plot(params[:,0] , params[:,2])
-xlabel("shell (#)")
+xlabel("Radius (Earth radii)")
 ylabel("Density (arb.)")
 title("Radial Initial Density Profile")
 show()
 
 plot(params[:,0] , params[:,3])
-xlabel("shell (#)")
+xlabel("Radius (Earth radii)")
 ylabel("Conductivity (arb.)")
 title("Radial Initial Conductivity Profile")
 show()
