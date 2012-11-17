@@ -202,14 +202,27 @@ planet.set_shell_temperature(0, init_core_temp)
 planet.set_shell_temperature(num_shells - 1, 0)
 
 #Set max simulation time
-max_time = 10000
+max_time = 100
 
 #Track time-evolved temperature of certain shells
-core_shell = int(num_shells * planet.inner_core) 
+inner_core_shell = int(num_shells * planet.inner_core)
+outer_core_shell = int(num_shells * planet.outer_core)
+inner_mantle_shell = int(num_shells * planet.inner_mantle)
+outer_mantle_shell = int(num_shells * planet.outer_mantle)
+crust_shell = int(num_shells - 1)
+
+#Open file for temperature tracking
+file_temp_track = open("temp_track.txt", "w")
 
 #Iteratively compute the temperature
 for i in range (0, max_time):
+        #Track temperature of specific shells
+        s = str(i) + " " + str(planet.get_shell_temperature(inner_core_shell)) + " " +str(planet.get_shell_temperature(outer_core_shell)) + " " + str(planet.get_shell_temperature(inner_mantle_shell)) + " " + str(planet.get_shell_temperature(outer_mantle_shell)) + " " + str(planet.get_shell_temperature(crust_shell)) + "\n"
+        file_temp_track.write(s)
+        
         change = planet.compute_init_temperature(1)
+
+        
 
 #Check initialized parameters and save to file
 file_init_params = open("init_params.txt", "w")
@@ -238,3 +251,19 @@ xlabel("Radius (Earth radii)")
 ylabel("Conductivity (arb.)")
 title("Radial Initial Conductivity Profile")
 show()
+
+#Plot temperatures of tracked shells
+temps = loadtxt("temp_track.txt")
+
+plot(temps[:,0] , temps[:,1])
+xlabel("Time (arb.)")
+ylabel("Temp (arb.)")
+title("Time Evolved Temperature (Inner Core)")
+show()
+
+plot(temps[:,0] , temps[:,2])
+xlabel("Time (arb.)")
+ylabel("Temp (arb.)")
+title("Time Evolved Temperature (Outer Core)")
+show()
+
