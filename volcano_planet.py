@@ -11,7 +11,7 @@ class Shell:
 
         #Initialize a spherical shell for the planet
         def __init__(self, temp, r, conductivity, rho, thickness):
-                self._temperature = temp
+                self.temperature = temp
                 self.radius = r
                 self.conductivity = conductivity
                 self.density = rho
