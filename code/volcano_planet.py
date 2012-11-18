@@ -8,11 +8,15 @@ from pylab import *
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 
 sys.setrecursionlimit(5000)
 
 LOCK_BOUNDARIES = True
+
+SAVE = False
+SAVE_PARAMS = False
 
 #Spherical Shell class represents a spherically symmetrical segment of the planet
 class Shell:
@@ -136,7 +140,7 @@ class Planet:
                         shell.diffusivity = shell.conductivity/shell.density
         
 
-def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_temp = 7000, name = 'Planet'):
+def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp = 7000, name = 'Planet'):
     #******Simulate the Planet******#
 
     # make directory for experimental results
@@ -167,13 +171,6 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     planet.shells[0].temperature = init_core_temp
     planet.shells[num_shells - 1].temperature =  0
 
-    #Track time-evolved temperature of certain shells
-    inner_core_shell = int(num_shells * planet.inner_core)
-    outer_core_shell = int(num_shells * planet.outer_core)
-    inner_mantle_shell = int(num_shells * planet.inner_mantle)
-    outer_mantle_shell = int(num_shells * planet.outer_mantle)
-    crust_shell = int(num_shells - 2)
-
     # initialize 2D matrix to store temperature at each radial location over time
     T_data = zeros((num_shells, max_time))
 
@@ -188,10 +185,45 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     conductivity = zeros(num_shells)
     for i in range(0, num_shells):
             density[i], conductivity[i] = planet.shells[i].density, planet.shells[i].conductivity
-    radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
-    time = asarray(range(max_time))
+    radii = asarray([i*planet.shell_thickness for i in xrange(0, num_shells, 1)])
+    time = asarray(range(0,max_time, 1))
     final_temp = T_data[:, -1]
+    
 
+    plotData(radii, final_temp, density, conductivity)
+    if SAVE: 
+        plt.savefig(os.path.join(dir_name, name+': final_data.png'))
+        plt.clf()
+    else: plt.show()
+    
+    plotHeatMap(num_shells, planet, T_data)
+    if SAVE: 
+        plt.savefig(os.path.join(dir_name, name+': heatmap.png'))
+        plt.clf()
+    else: plt.show()
+
+    plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = int(time.shape[0]/10.0))
+    if SAVE:
+        plt.savefig(os.path.join(dir_name, name+': temp_surface.png'))
+        plt.clf()    
+    else: plt.show()
+
+
+    if SAVE_PARAMS:
+        # save parameters and results
+        init_params = {'mass': mass, 'base_num_shells' : base_num_shells, 'max_time': max_time, 'init_core_temp': init_core_temp}
+        params = [T_data, radii, time, density, conductivity]
+
+        f = open(os.path.join(dir_name, 'results.pkl'), 'wb')
+        cPickle.dump(params, f)
+        f.close()
+        
+        f = open(os.path.join(dir_name, 'params'), 'wb')
+        json.dump(init_params, f)
+        f.close()
+
+
+def plotData(radii, final_temp, density, conductivity):
     # make plots for final values
     plt.figure(0)
     ax1 = plt.subplot(5, 1, 1)
@@ -212,14 +244,18 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     ax3.set_ylabel("Conductivity (arb.)")
     ax3.set_title("Radial Conductivity Profile")
 
-    plt.savefig(os.path.join(dir_name, name+': final_data.png'))
-    #plt.show()
+def plotHeatMap(num_shells, planet, T_data):
 
-    plt.clf()
-
+    #Track time-evolved temperature of certain shells
+    inner_core_shell = int(num_shells * planet.inner_core)
+    outer_core_shell = int(num_shells * planet.outer_core)
+    inner_mantle_shell = int(num_shells * planet.inner_mantle)
+    outer_mantle_shell = int(num_shells * planet.outer_mantle)
+    crust_shell = int(num_shells - 2)
+    
     # plot temperate data over time as heat map
     plt.figure(1)
-    plt.imshow(T_data, aspect = 'auto')
+    plot = plt.imshow(T_data, aspect = 'auto')
     plt.axhline(inner_core_shell, color='black')
     plt.axhline(outer_core_shell, color='black')
     plt.axhline(inner_mantle_shell, color='black')
@@ -227,28 +263,30 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     plt.axhline(crust_shell, color='black')
     plt.colorbar()
 
-    #plt.show()
-    plt.savefig(os.path.join(dir_name, name+': heatmap.png'))
+    return plot
 
-    plt.clf()
+def plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = 10):
+    T_data=asarray([T_data[:, i] for i in xrange(0, T_data.shape[1], t_step)])
+    T_data=asarray([T_data[j, :] for j in xrange(0, T_data.shape[0], r_step)])
 
-    # save parameters and results
-    init_params = {'mass': mass, 'base_num_shells' : base_num_shells, 'max_time': max_time, 'init_core_temp': init_core_temp}
-    params = [T_data, radii, time, density, conductivity]
+    print time.shape
 
-    f = open(os.path.join(dir_name, 'results.pkl'), 'wb')
-    cPickle.dump(params, f)
-    f.close()
+    radii = asarray([radii[i] for i in xrange(0, radii.shape[0], r_step)])
+    time = asarray(range(0,time.shape[0], t_step))
+    radii, time = meshgrid(radii, time)
+
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    surf = ax.plot_surface(radii, time, T_data, rstride = 1, cstride = 15, cmap =cm.coolwarm)
     
-    f = open(os.path.join(dir_name, 'params'), 'wb')
-    json.dump(init_params, f)
-    f.close()
+    return surf
 
 
 
 
 
-experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Earth_diffusivity')
+#experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Earth_diffusivity')
 
 #experiment(mass = 0.055, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Mercury')
 #experiment(mass = 0.81, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Venus')
@@ -260,20 +298,14 @@ experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp =
 
 
 
+experiment(max_time = 10000)
+
+
+
 
 
 
 '''
-radii, time = meshgrid(radii, time)
-
-fig = plt.figure()
-ax = fig.gca(projection='3d')
-
-surf = ax.plot_surface(radii, time, T_data)
-plt.show()
-
-
-
 #Plot temperatures of tracked shells
 temps = loadtxt("temp_track.txt")
 
