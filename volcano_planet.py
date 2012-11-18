@@ -1,5 +1,6 @@
 #Script for simulating temperature and density of a planet to evaluate volcanic activity
-import sys
+import sys, os
+import cPickle, json
 
 from scipy import *
 from numpy import *
@@ -131,121 +132,109 @@ class Planet:
                                 shell.density = 0.00121 * exp((shell.radius - 1)/0.0012543)
                                 shell.conductivity = 0.025
         
-                
-#******Simulate the Planet******#
 
-#Set radius and mass the planet (in Earth units)
-mass = 1.0
-radius = mass**(1.0/3.0)
+def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_temp = 7000):
+    #******Simulate the Planet******#
 
-#Set how many shells we want
-num_shells = int(250 * radius)
-
-#Set max simulation time
-max_time = 10000
-
-
-
-#Create a planet
-planet = Planet(num_shells, radius) 
-
-#Set density of planet
-planet.compute_density_and_conductivity()
-
-#Set the initial temp in Kelvins
-init_core_temp = 7000
-for i in range (0, num_shells - 2):
-        planet.shells[i].temperature = init_core_temp
-
-#Set boundary conditions for the temperature initialization
-planet.shells[0].temperature = init_core_temp
-planet.shells[num_shells - 1].temperature =  0
-
-
-#Track time-evolved temperature of certain shells
-inner_core_shell = int(num_shells * planet.inner_core)
-outer_core_shell = int(num_shells * planet.outer_core)
-inner_mantle_shell = int(num_shells * planet.inner_mantle)
-outer_mantle_shell = int(num_shells * planet.outer_mantle)
-crust_shell = int(num_shells - 2)
-
-#Open file for temperature tracking
-file_temp_track = open("temp_track.txt", "w")
-
-
-#Open file for time tracking of all parameters
-time_track = open('time_track.txt', 'w')
-
-
-T_data = zeros((num_shells, max_time))
-
-#Iteratively compute the temperature
-for i in range (0, max_time):
-        #Track temperature of specific shells
-        change, temp_list = planet.compute_temperature(0)            
-        T_data[:, i] = asarray(temp_list)
+    # make directory for experimental results
+    experiment_name = 'm%.2f_t%d.png'%(mass, max_time)
+    dir_name = os.path.join('results', experiment_name) 
+    os.mkdir(dir_name)
         
-file_temp_track.close()
-        
+    #Set radius and mass the planet (in Earth units)
+    radius = mass**(1.0/3.0)
 
-#Check initialized parameters and save to file
-file_init_params = open("final_params.txt", "w")
-for i in range(0, num_shells):
-        s = str(planet.shells[i].radius) + " " + str(planet.shells[i].temperature) + " " + str(planet.shells[i].density) + " " + str(planet.shells[i].conductivity) +  "\n"
-        file_init_params.write(s)
-file_init_params.close()
+    num_shells = int(base_num_shells* radius)
 
-#Plot initialized parameters
-params = loadtxt("final_params.txt")
+    #Create a planet
+    planet = Planet(num_shells, radius) 
 
-plt.figure(0)
+    #Set density of planet
+    planet.compute_density_and_conductivity()
 
-ax1 = plt.subplot(5, 1, 1)
-plt.plot(params[:,0] , params[:,1])
-ax1.set_xlabel("Radius (Earth radii)")
-ax1.set_ylabel("Temp (arb.)")
-ax1.set_title("Radial Initial Temperature Profile")
+    #Set the initial temp in Kelvins
+    for i in range (0, num_shells - 2):
+            planet.shells[i].temperature = init_core_temp
 
-ax2 = plt.subplot(5,1,3)
-plt.plot(params[:,0] , params[:,2])
-ax2.set_xlabel("Radius (Earth radii)")
-ax2.set_ylabel("Density (arb.)")
-ax2.set_title("Radial Initial Density Profile")
+    #Set boundary conditions for the temperature initialization
+    planet.shells[0].temperature = init_core_temp
+    planet.shells[num_shells - 1].temperature =  0
 
-ax3 = plt.subplot(5,1,5)
-plt.plot(params[:,0] , params[:,3])
-ax3.set_xlabel("Radius (Earth radii)")
-ax3.set_ylabel("Conductivity (arb.)")
-ax3.set_title("Radial Initial Conductivity Profile")
+    #Track time-evolved temperature of certain shells
+    inner_core_shell = int(num_shells * planet.inner_core)
+    outer_core_shell = int(num_shells * planet.outer_core)
+    inner_mantle_shell = int(num_shells * planet.inner_mantle)
+    outer_mantle_shell = int(num_shells * planet.outer_mantle)
+    crust_shell = int(num_shells - 2)
 
-plt.savefig('data_r%f_t%d.png'%(radius, max_time))
-#plt.show()
+    # initialize 2D matrix to store temperature at each radial location over time
+    T_data = zeros((num_shells, max_time))
 
-plt.clf()
+    #Iteratively compute the temperature
+    for i in range (0, max_time):
+            change, temp_list = planet.compute_temperature(0)            
+            T_data[:, i] = asarray(temp_list)
+                            
+    #Build arrays for parameters and simulated variables
+    # density and conductivity are constant
+    density = zeros(num_shells)
+    conductivity = zeros(num_shells)
+    for i in range(0, num_shells):
+            density_array[i], conductivity_array[i] = planet.shells[i].density, planet.shells[i].conductivity
+    radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
+    time = asarray(range(max_time))
+    final_temp = T_data[:, -1]
 
-plt.figure(1)
+    # make plots for final values
+    plt.figure(0)
+    ax1 = plt.subplot(5, 1, 1)
+    plt.plot(radii, final_temp)
+    ax1.set_xlabel("Radius (Earth radii)")
+    ax1.set_ylabel("Temp (arb.)")
+    ax1.set_title("Radial Final Temperature Profile")
 
-radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
-time = asarray(range(max_time))
+    ax2 = plt.subplot(5,1,3)
+    plt.plot(radii , density)
+    ax2.set_xlabel("Radius (Earth radii)")
+    ax2.set_ylabel("Density (arb.)")
+    ax2.set_title("Radial Density Profile")
 
-plt.imshow(T_data, aspect = 'auto')
-plt.axhline(inner_core_shell, color='black')
-plt.axhline(outer_core_shell, color='black')
-plt.axhline(inner_mantle_shell, color='black')
-plt.axhline(outer_mantle_shell, color='black')
-plt.axhline(crust_shell, color='black')
+    ax3 = plt.subplot(5,1,5)
+    plt.plot(params[:,0] , conductivity)
+    ax3.set_xlabel("Radius (Earth radii)")
+    ax3.set_ylabel("Conductivity (arb.)")
+    ax3.set_title("Radial Conductivity Profile")
 
-#plt.show()
-plt.savefig('heatmap_r%f_t%d.png'%(radius, max_time))
-'''
-#Track time-evolved temperature of certain shells
-inner_core_shell = int(num_shells * planet.inner_core)
-outer_core_shell = int(num_shells * planet.outer_core)
-inner_mantle_shell = int(num_shells * planet.inner_mantle)
-outer_mantle_shell = int(num_shells * planet.outer_mantle)
-crust_shell = int(num_shells - 2)
+    plt.savefig(os.path.join(dir_name, 'final_data.png')
+    #plt.show()
 
-'''
+    plt.clf()
+
+    # plot temperate data over time as heat map
+    plt.figure(1)
+    plt.imshow(T_data, aspect = 'auto')
+    plt.axhline(inner_core_shell, color='black')
+    plt.axhline(outer_core_shell, color='black')
+    plt.axhline(inner_mantle_shell, color='black')
+    plt.axhline(outer_mantle_shell, color='black')
+    plt.axhline(crust_shell, color='black')
+    plt.colorbar()
+
+    #plt.show()
+    plt.savefig(os.path.join(dir_name, 'heatmap.png')
+
+
+    # save parameters and results
+    init_params = {'mass': mass; 'base_num_shells' : base_num_shells; 'max_time': max_time; 'init_core_temp': init_core_temp}
+    params = [T_data, radii, time, density, conductivity]
+
+    f = open(os.path.join(dir_name, 'results.pkl'), 'wb')
+    cPickle.dump(params, f)
+    f.close()
+    
+    f = open(os.path.join(dir_name, 'params'), 'wb')
+    json.dump(f, init_params)
+    f.close()
 
 
 
