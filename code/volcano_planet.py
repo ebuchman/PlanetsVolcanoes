@@ -2,14 +2,11 @@
 import sys, os
 import cPickle, json
 
-from scipy import *
 from numpy import *
-from pylab import *
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 from matplotlib import cm
-
 
 sys.setrecursionlimit(5000)
 
@@ -140,7 +137,7 @@ class Planet:
                         shell.diffusivity = shell.conductivity/shell.density
         
 
-def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp = 7000, name = 'Planet'):
+def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp = 7000, epsilon = 0.01, name = 'Planet'):
     #******Simulate the Planet******#
 
     # make directory for experimental results
@@ -174,11 +171,19 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
     # initialize 2D matrix to store temperature at each radial location over time
     T_data = zeros((num_shells, max_time))
 
+
+    equilibrium_time = max_time
+    
     #Iteratively compute the temperature
     for i in range (0, max_time):
             change, temp_list = planet.compute_temperature(0)            
             T_data[:, i] = asarray(temp_list)
-                            
+            
+            if equilibrium_time ==max_time and (change**0.5)/num_shells < epsilon:
+                equilibrium_time = i
+    
+    print equilibrium_time
+    
     #Build arrays for parameters and simulated variables
     # density and conductivity are constant
     density = zeros(num_shells)
@@ -196,7 +201,7 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
         plt.clf()
     else: plt.show()
     
-    plotHeatMap(num_shells, planet, T_data)
+    plotHeatMap(num_shells, planet, T_data, equilibrium_time)
     if SAVE: 
         plt.savefig(os.path.join(dir_name, name+': heatmap.png'))
         plt.clf()
@@ -223,28 +228,35 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
         f.close()
 
 
+#######################
+## Plotting Functions##
+#######################
+
 def plotData(radii, final_temp, density, conductivity):
     # make plots for final values
     plt.figure(0)
-    ax1 = plt.subplot(5, 1, 1)
+    ax1 = plt.subplot(4, 1, 1)
     plt.plot(radii, final_temp)
     ax1.set_xlabel("Radius (Earth radii)")
     ax1.set_ylabel("Temp (arb.)")
     ax1.set_title("Radial Final Temperature Profile")
 
-    ax2 = plt.subplot(5,1,3)
-    plt.plot(radii, density)
+    ax2 = plt.subplot(4,1,3)
+    plt.plot(radii, density, 'blue')
+    plt.plot(radii, conductivity, 'green')
     ax2.set_xlabel("Radius (Earth radii)")
-    ax2.set_ylabel("Density (arb.)")
-    ax2.set_title("Radial Density Profile")
+    ax2.set_ylabel("Density and Conductivity (arb.)")
+    ax2.set_title("Radial Density and Conductivity Profile")
 
+    '''
     ax3 = plt.subplot(5,1,5)
     plt.plot(radii, conductivity)
     ax3.set_xlabel("Radius (Earth radii)")
     ax3.set_ylabel("Conductivity (arb.)")
     ax3.set_title("Radial Conductivity Profile")
+    '''
 
-def plotHeatMap(num_shells, planet, T_data):
+def plotHeatMap(num_shells, planet, T_data, eq_time):
 
     #Track time-evolved temperature of certain shells
     inner_core_shell = int(num_shells * planet.inner_core)
@@ -261,6 +273,7 @@ def plotHeatMap(num_shells, planet, T_data):
     plt.axhline(inner_mantle_shell, color='black')
     plt.axhline(outer_mantle_shell, color='black')
     plt.axhline(crust_shell, color='black')
+    plt.axvline(eq_time, color='black')
     plt.colorbar()
 
     return plot
@@ -283,53 +296,15 @@ def plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = 10):
     return surf
 
 
-
-
+###############
+##Experiments##
+###############
 
 #experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Earth_diffusivity')
-
 #experiment(mass = 0.055, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Mercury')
 #experiment(mass = 0.81, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Venus')
 #experiment(mass = 0.0123, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Moon')
-
-
 #experiment(mass = 0.107, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Mars')
-
-
-
 
 experiment(max_time = 10000)
 
-
-
-
-
-
-'''
-#Plot temperatures of tracked shells
-temps = loadtxt("temp_track.txt")
-
-plot(temps[:,0] , temps[:,1])
-xlabel("Time (arb.)")
-ylabel("Temp (arb.)")
-title("Time Evolved Temperature (Inner Core)")
-show()
-
-plot(temps[:,0] , temps[:,2])
-xlabel("Time (arb.)")
-ylabel("Temp (arb.)")
-title("Time Evolved Temperature (Outer Core)")
-show()
-
-plot(temps[:,0] , temps[:,3])
-xlabel("Time (arb.)")
-ylabel("Temp (arb.)")
-title("Time Evolved Temperature (Inner Mantle)")
-show()
-
-plot(temps[:,0] , temps[:,4])
-xlabel("Time (arb.)")
-ylabel("Temp (arb.)")
-title("Time Evolved Temperature (Crust)")
-show()
-'''
