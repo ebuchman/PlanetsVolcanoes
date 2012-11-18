@@ -143,7 +143,6 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
     # make directory for experimental results
     experiment_name = '%s_m%.2f_t%d'%(name, mass, max_time)
     dir_name = os.path.join('results', 'experiment_'+experiment_name) 
-    
     if not os.path.exists('results'):
         os.mkdir('results')
     if not os.path.exists(dir_name):
@@ -171,7 +170,6 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
     # initialize 2D matrix to store temperature at each radial location over time
     T_data = zeros((num_shells, max_time))
 
-
     equilibrium_time = max_time
     
     #Iteratively compute the temperature
@@ -194,7 +192,7 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
     time = asarray(range(0,max_time, 1))
     final_temp = T_data[:, -1]
     
-
+    # plot data and results
     plotData(radii, final_temp, density, conductivity)
     if SAVE: 
         plt.savefig(os.path.join(dir_name, name+': final_data.png'))
@@ -235,13 +233,14 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
 def plotData(radii, final_temp, density, conductivity):
     # make plots for final values
     plt.figure(0)
-    ax1 = plt.subplot(4, 1, 1)
+    ax1 = plt.subplot(3, 1, 1)
     plt.plot(radii, final_temp)
     ax1.set_xlabel("Radius (Earth radii)")
     ax1.set_ylabel("Temp (arb.)")
     ax1.set_title("Radial Final Temperature Profile")
 
-    ax2 = plt.subplot(4,1,3)
+    # a better implementation of the density/conductivity joint plot will be required....
+    ax2 = plt.subplot(3,1,3)
     plt.plot(radii, density, 'blue')
     plt.plot(radii, conductivity, 'green')
     ax2.set_xlabel("Radius (Earth radii)")
