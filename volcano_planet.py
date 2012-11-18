@@ -1,4 +1,5 @@
 #Script for simulating temperature and density of a planet to evaluate volcanic activity
+import sys
 
 from scipy import *
 from numpy import *
@@ -6,6 +7,9 @@ from pylab import *
 
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+
+
+sys.setrecursionlimit(5000)
 
 LOCK_BOUNDARIES = True
 
@@ -19,44 +23,6 @@ class Shell:
                 self.conductivity = conductivity
                 self.density = rho
                 self.thickness = thickness
-        
-        #Sets the temperature of a shell
-        def set_temperature(self, temperature):
-                self.temperature = temperature
-        
-        #Sets the thickness of a shell
-        def set_thickness(self, thickness):
-                self.thickness = thickness
-        
-        #Sets the density of a shell
-        def set_density(self, density):
-                self.density = density
-
-        #Sets the conductivity of a shell
-        def set_conductivity(self, conductivity):
-                self.conductivity = conductivity
-        
-        #Gets the temperature of a shell
-        def get_temperature(self):
-                return self.temperature
-                
-        #Gets the radius of a shell
-        def get_radius(self):
-                return self.radius
-                
-        #Gets the thickness of a shell
-        def get_thickness(self):
-                return self.thickness
-
-        #Gets the density of a shell
-        def get_density(self):
-                return self.density
-
-        #Gets the conductivity of a shell
-        def get_conductivity(self):
-                return self.conductivity
-        
-        
 
 #Planet composed of spherical shells
 class Planet:
@@ -96,8 +62,9 @@ class Planet:
         #Target_shell should be the index number of the shell you want (in the shells[] array)
         #Squared_change accumulates how much the temperature overall changed in a given round of recursions
         #Meant to be called with initial target_shell at 0 (i.e. goes from core outwards)
-        def compute_temperature(self, target_shell, squared_change = 0):
-                
+        def compute_temperature(self, target_shell, T_list = None, squared_change = 0):
+                if T_list is None: 
+                    T_list = []
                 #Set inner and outer shell indices
                 inner_shell = target_shell - 1
                 outer_shell = target_shell + 1
@@ -105,29 +72,35 @@ class Planet:
                 #Check outer boundary
                 if (outer_shell >= self.num_shells and LOCK_BOUNDARIES):
                         #Don't change the temperature at outer edge (it's a boundary condition)
-                        new_temperature = self.shells[target_shell].get_temperature()
+                        new_temperature = self.shells[target_shell].temperature
+                        #T_list = []
                 #Check inner boundary
                 elif (target_shell == 0 and LOCK_BOUNDARIES):
-                        new_temperature = self.shells[target_shell].get_temperature()
+                        new_temperature = self.shells[target_shell].temperature
+                        #T_list = []
                 else: 
                         #Compute new temperature as a weighted average of the neighbours
-                        inner_weighting = self.shells[inner_shell].get_conductivity()*4*pi*(self.shells[inner_shell].get_thickness() + self.shells[inner_shell].get_radius())**2
-                        outer_weighting = self.shells[outer_shell].get_conductivity()*4*pi*(self.shells[outer_shell].get_radius())**2
+                        inner_weighting = self.shells[inner_shell].conductivity*4*pi*(self.shells[inner_shell].thickness + self.shells[inner_shell].radius)**2
+                        outer_weighting = self.shells[outer_shell].conductivity*4*pi*(self.shells[outer_shell].radius)**2
                         norm_factor = (1.0/(inner_weighting + outer_weighting))
-                        new_temperature = norm_factor*(inner_weighting*self.shells[inner_shell].get_temperature() + outer_weighting*self.shells[outer_shell].get_temperature())
+                        new_temperature = norm_factor*(inner_weighting*self.shells[inner_shell].temperature + outer_weighting*self.shells[outer_shell].temperature)
                 
                 #Accumulate the temperature change
-                squared_change += (self.shells[target_shell].get_temperature() - new_temperature)**2
+                squared_change += (self.shells[target_shell].temperature - new_temperature)**2
                 
                 #Set the new temperature
-                self.shells[target_shell].set_temperature(new_temperature)
-                
+                self.shells[target_shell].temperature = new_temperature
+
+
                 #Recur the function outward
                 if (outer_shell < self.num_shells):
-                        squared_change += self.compute_temperature(outer_shell)
-                
+                        change, _ = self.compute_temperature(outer_shell, T_list)
+                        squared_change += change
+                        
+                T_list.insert(0, new_temperature)
+
                 #This is used in the main loop to determine when the temperature has equilibrated
-                return new_temperature
+                return squared_change, T_list
         
         #Compute the densities and conductivities of the shells
         def compute_density_and_conductivity(self):
@@ -136,58 +109,42 @@ class Planet:
                 #Iterate through each shell
                 for shell in self.shells:
                         #Find which region of the planet the current shell is in
-                        region = shell.get_radius() / self.radius
+                        region = shell.radius / self.radius
                         
                         #Apply a different function depending which region of the planet you're in
                         if (region < self.inner_core):
-                               shell.set_density(13.1 - 0.00035*shell.get_radius())
-                               shell.set_conductivity(200)
+                               shell.density = 13.1 - 0.00035*shell.radius
+                               shell.conductivity = 200
                         elif (region < self.outer_core):
-                               shell.set_density(12.2 - 0.001*shell.get_radius())
-                               shell.set_conductivity(10 - 0.006*(shell.get_radius() - 0.191))
+                               shell.density =12.2 - 0.001*shell.radius
+                               shell.conductivity = 10 - 0.006*(shell.radius - 0.191)
                         elif (region < self.inner_mantle):
-                               shell.set_density(5.6 - 0.00055*shell.get_radius())
-                               shell.set_conductivity(5)
+                               shell.density = 5.6 - 0.00055*shell.radius
+                               shell.conductivity = 5
                         elif (region < self.outer_mantle):
-                                shell.set_density(4.4 - 0.0013*shell.get_radius())
-                                shell.set_conductivity(5)
+                                shell.density = 4.4 - 0.0013*shell.radius
+                                shell.conductivity = 5
                         elif (region < self.crust):
-                                shell.set_density(2.9 - 0.023*shell.get_radius())
-                                shell.set_conductivity(6.5)
+                                shell.density = 2.9 - 0.023*shell.radius
+                                shell.conductivity = 6.5
                         else:
-                                shell.set_density(0.00121 * exp((shell.get_radius() - 1)/0.0012543))
-                                shell.set_conductivity(0.025)
+                                shell.density = 0.00121 * exp((shell.radius - 1)/0.0012543)
+                                shell.conductivity = 0.025
         
-        #Set temperature of a particular shell
-        def set_shell_temperature(self, index, temperature):
-                self.shells[index].set_temperature(temperature)
-        
-        #Get a shell temperature
-        def get_shell_temperature(self, index):
-                return self.shells[index].get_temperature()
-
-        def get_shell_density(self, index):
-                return self.shells[index].get_density()
-        
-        #Get a shell conductivity
-        def get_shell_conductivity(self, index):
-                return self.shells[index].get_conductivity()
-
-        #Get a shell radius
-        def get_shell_radius(self, index):
-                return self.shells[index].get_radius()
-        
-        
-
-                
                 
 #******Simulate the Planet******#
 
-#Set how many shells we want
-num_shells = 250
+#Set radius and mass the planet (in Earth units)
+mass = 1.0
+radius = mass**(1.0/3.0)
 
-#Set radius of the planet (in Earth radii)
-radius = 1
+#Set how many shells we want
+num_shells = int(250 * radius)
+
+#Set max simulation time
+max_time = 10000
+
+
 
 #Create a planet
 planet = Planet(num_shells, radius) 
@@ -198,14 +155,12 @@ planet.compute_density_and_conductivity()
 #Set the initial temp in Kelvins
 init_core_temp = 7000
 for i in range (0, num_shells - 2):
-        planet.set_shell_temperature(i, init_core_temp)
+        planet.shells[i].temperature = init_core_temp
 
 #Set boundary conditions for the temperature initialization
-planet.set_shell_temperature(0, init_core_temp)
-planet.set_shell_temperature(num_shells - 1, 0)
+planet.shells[0].temperature = init_core_temp
+planet.shells[num_shells - 1].temperature =  0
 
-#Set max simulation time
-max_time = 50000
 
 #Track time-evolved temperature of certain shells
 inner_core_shell = int(num_shells * planet.inner_core)
@@ -227,26 +182,23 @@ T_data = zeros((num_shells, max_time))
 #Iteratively compute the temperature
 for i in range (0, max_time):
         #Track temperature of specific shells
-        s = str(i) + " " + str(planet.get_shell_temperature(inner_core_shell)) + " " +str(planet.get_shell_temperature(outer_core_shell)) + " " + str(planet.get_shell_temperature(inner_mantle_shell)) + " " + str(planet.get_shell_temperature(outer_mantle_shell)) + " " + str(planet.get_shell_temperature(crust_shell)) + "\n"
+        change, temp_list = planet.compute_temperature(0)            
+        T_data[:, i] = asarray(temp_list)
         
-        file_temp_track.write(s)
-        
-        T_data[:,i] = np.asarray([planet.get_shell_temperature(j) for j in xrange(num_shells)])
-
-        
-        change = planet.compute_temperature(1)
 file_temp_track.close()
         
 
 #Check initialized parameters and save to file
 file_init_params = open("final_params.txt", "w")
 for i in range(0, num_shells):
-        s = str(planet.get_shell_radius(i)) + " " + str(planet.get_shell_temperature(i)) + " " + str(planet.get_shell_density(i)) + " " + str(planet.get_shell_conductivity(i)) +  "\n"
+        s = str(planet.shells[i].radius) + " " + str(planet.shells[i].temperature) + " " + str(planet.shells[i].density) + " " + str(planet.shells[i].conductivity) +  "\n"
         file_init_params.write(s)
 file_init_params.close()
 
 #Plot initialized parameters
 params = loadtxt("final_params.txt")
+
+plt.figure(0)
 
 ax1 = plt.subplot(5, 1, 1)
 plt.plot(params[:,0] , params[:,1])
@@ -266,14 +218,37 @@ ax3.set_xlabel("Radius (Earth radii)")
 ax3.set_ylabel("Conductivity (arb.)")
 ax3.set_title("Radial Initial Conductivity Profile")
 
-plt.show()
+plt.savefig('data_r%f_t%d.png'%(radius, max_time))
+#plt.show()
 
+plt.clf()
+
+plt.figure(1)
 
 radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
 time = asarray(range(max_time))
 
 plt.imshow(T_data, aspect = 'auto')
-plt.show()
+plt.axhline(inner_core_shell, color='black')
+plt.axhline(outer_core_shell, color='black')
+plt.axhline(inner_mantle_shell, color='black')
+plt.axhline(outer_mantle_shell, color='black')
+plt.axhline(crust_shell, color='black')
+
+#plt.show()
+plt.savefig('heatmap_r%f_t%d.png'%(radius, max_time))
+'''
+#Track time-evolved temperature of certain shells
+inner_core_shell = int(num_shells * planet.inner_core)
+outer_core_shell = int(num_shells * planet.outer_core)
+inner_mantle_shell = int(num_shells * planet.inner_mantle)
+outer_mantle_shell = int(num_shells * planet.outer_mantle)
+crust_shell = int(num_shells - 2)
+
+'''
+
+
+
 quit()
 
 radii, time = meshgrid(radii, time)
