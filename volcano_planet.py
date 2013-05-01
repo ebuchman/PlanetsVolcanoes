@@ -1,6 +1,6 @@
 #Script for simulating temperature and density of a planet to evaluate volcanic activity
 import sys, os
-import cPickle, json
+import pickle, json
 
 from scipy import *
 from numpy import *
@@ -133,12 +133,12 @@ class Planet:
                                 shell.conductivity = 0.025
         
 
-def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_temp = 7000):
+def experiment(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_temp = 7000):
     #******Simulate the Planet******#
 
     # make directory for experimental results
     experiment_name = 'm%.2f_t%d.png'%(mass, max_time)
-    dir_name = os.path.join('results', experiment_name) 
+    dir_name = os.path.normpath(os.path.join('results', experiment_name) )
     os.mkdir(dir_name)
         
     #Set radius and mass the planet (in Earth units)
@@ -179,6 +179,10 @@ def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     # density and conductivity are constant
     density = zeros(num_shells)
     conductivity = zeros(num_shells)
+
+    density_array = zeros(num_shells)
+    conductivity_array = zeros(num_shells)
+    
     for i in range(0, num_shells):
             density_array[i], conductivity_array[i] = planet.shells[i].density, planet.shells[i].conductivity
     radii = asarray([i*planet.shell_thickness for i in xrange(num_shells)])
@@ -200,12 +204,12 @@ def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     ax2.set_title("Radial Density Profile")
 
     ax3 = plt.subplot(5,1,5)
-    plt.plot(params[:,0] , conductivity)
+    plt.plot(radii , conductivity)
     ax3.set_xlabel("Radius (Earth radii)")
     ax3.set_ylabel("Conductivity (arb.)")
     ax3.set_title("Radial Conductivity Profile")
 
-    plt.savefig(os.path.join(dir_name, 'final_data.png')
+    plt.savefig(os.path.normpath(os.path.join(dir_name, 'final_data.png')))
     #plt.show()
 
     plt.clf()
@@ -220,12 +224,12 @@ def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     plt.axhline(crust_shell, color='black')
     plt.colorbar()
 
-    #plt.show()
-    plt.savefig(os.path.join(dir_name, 'heatmap.png')
+    plt.show()
+    plt.savefig(os.path.join(dir_name, 'heatmap.png'))
 
 
     # save parameters and results
-    init_params = {'mass': mass; 'base_num_shells' : base_num_shells; 'max_time': max_time; 'init_core_temp': init_core_temp}
+    init_params = {'mass': mass , 'base_num_shells' : base_num_shells, 'max_time': max_time, 'init_core_temp': init_core_temp}
     params = [T_data, radii, time, density, conductivity]
 
     f = open(os.path.join(dir_name, 'results.pkl'), 'wb')
@@ -237,7 +241,7 @@ def experimnet(mass = 1.0, base_num_shells = 250, max_time = 10000, init_core_te
     f.close()
 
 
-
+experiment()
 quit()
 
 radii, time = meshgrid(radii, time)

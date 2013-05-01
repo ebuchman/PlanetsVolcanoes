@@ -35,12 +35,13 @@ class Planet:
         radius = 0
 
         #Set boundaries for planetary regions (upper bounds of regions in terms of Earth radii)
-        inner_core = 0.191
-        outer_core = 0.544
-        inner_mantle = 0.882
-        outer_mantle = .995
+        inner_core = 0.192
+        outer_core = 0.546
+        inner_mantle = 0.895
+        trans_mantle = 0.937
+        outer_mantle = .965
+        lvz = .996
         crust = 1.0
-        atmosphere =1.002
         
         #Initialize with empty (parameterless) shells
         def __init__(self, num_shells, radius):
@@ -116,25 +117,39 @@ class Planet:
                         
                         #Apply a different function depending which region of the planet you're in
                         if (region < self.inner_core):
-                               shell.density = 13.1 - 0.00035*shell.radius
-                               shell.conductivity = 200
+                                shell.density = 13.0885 - 8.8381*shell.radius**2
+                                shell.conductivity = 80
                         elif (region < self.outer_core):
-                               shell.density =12.2 - 0.001*shell.radius
-                               shell.conductivity = 10 - 0.006*(shell.radius - 0.191)
+                                shell.density = 12.5815 - 1.2638*shell.radius - 3.6426*shell.radius**2 - 5.5281*shell.radius**3
+                                shell.conductivity = 10  #-0.01257193448*shell.radius+48.35033200
                         elif (region < self.inner_mantle):
-                               shell.density = 5.6 - 0.00055*shell.radius
-                               shell.conductivity = 5
+                                shell.density = 7.9565 - 6.4761*shell.radius + 5.5283*shell.radius**2 -3.0807*shell.radius**3
+                                shell.conductivity =5
+                        elif (region < self.trans_mantle):
+                                shell.density = 11.2494- 8.0298*shell.radius
+                                shell.conductivity =  5
                         elif (region < self.outer_mantle):
-                                shell.density = 4.4 - 0.0013*shell.radius
+                                shell.density = 7.1089 - 3.8045*shell.radius
                                 shell.conductivity = 5
-                        elif (region < self.crust):
-                                shell.density = 2.9 - 0.023*shell.radius
-                                shell.conductivity = 6.5
+                        elif (region < self.lvz):
+                                shell.density = 2.691 + 0.6924*shell.radius
+                                shell.conductivity = 5 
+                        elif (region <= self.crust):
+                                shell.density = 2.75
+                                shell.conductivity = 4.5
                         else:
-                                shell.density = 0.00121 * exp((shell.radius - 1)/0.0012543)
-                                shell.conductivity = 0.025
+                                shell.density = 2.75
+                                shell.conductivity = 4.5
                         
                         shell.diffusivity = shell.conductivity/shell.density
+
+        #Compute mass of planet
+        def compute_mass(self):
+                mass = 0
+                for i in arange(self.num_shells):
+                        mass += self.shells[i].density*((self.shells[i].radius*637810000)**2)*4*pi*(self.shells[i].thickness*637810000)
+                return mass / 5.97E27
+        
         
 
 def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp = 7000, epsilon = 0.01, name = 'Planet'):
@@ -156,7 +171,7 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
     #Create a planet
     planet = Planet(num_shells, radius) 
 
-    #Set density of planet
+    #Set density and conductivity of planet
     planet.compute_density_and_conductivity()
 
     #Set the initial temp in Kelvins
@@ -165,7 +180,7 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
 
     #Set boundary conditions for the temperature initialization
     planet.shells[0].temperature = init_core_temp
-    planet.shells[num_shells - 1].temperature =  0
+    planet.shells[num_shells - 1].temperature =  255
 
     # initialize 2D matrix to store temperature at each radial location over time
     T_data = zeros((num_shells, max_time))
@@ -177,10 +192,11 @@ def experiment(mass = 1.0, base_num_shells = 250, max_time = 100, init_core_temp
             change, temp_list = planet.compute_temperature(0)            
             T_data[:, i] = asarray(temp_list)
             
-            if equilibrium_time ==max_time and (change**0.5)/num_shells < epsilon:
+            if equilibrium_time == max_time and (change**0.5)/num_shells < epsilon:
                 equilibrium_time = i
     
-    print equilibrium_time
+    print "Equilibrium Time: " + str(equilibrium_time)
+    print "Total Planet Mass: " + str(planet.compute_mass())
     
     #Build arrays for parameters and simulated variables
     # density and conductivity are constant
@@ -237,7 +253,7 @@ def plotData(radii, final_temp, density, conductivity):
     plt.plot(radii, final_temp)
     ax1.set_xlabel("Radius (Earth radii)")
     ax1.set_ylabel("Temp (arb.)")
-    ax1.set_title("Radial Final Temperature Profile")
+    #ax1.set_title("Radial Final Temperature Profile")
 
     # a better implementation of the density/conductivity joint plot will be required....
     ax2 = plt.subplot(3,1,3)
@@ -245,7 +261,7 @@ def plotData(radii, final_temp, density, conductivity):
     plt.plot(radii, conductivity, 'green')
     ax2.set_xlabel("Radius (Earth radii)")
     ax2.set_ylabel("Density and Conductivity (arb.)")
-    ax2.set_title("Radial Density and Conductivity Profile")
+    #ax2.set_title("Radial Density and Conductivity Profile")
 
     '''
     ax3 = plt.subplot(5,1,5)
@@ -261,19 +277,26 @@ def plotHeatMap(num_shells, planet, T_data, eq_time):
     inner_core_shell = int(num_shells * planet.inner_core)
     outer_core_shell = int(num_shells * planet.outer_core)
     inner_mantle_shell = int(num_shells * planet.inner_mantle)
+    trans_mantle_shell = int(num_shells * planet.trans_mantle)
     outer_mantle_shell = int(num_shells * planet.outer_mantle)
+    lvz_shell = int(num_shells * planet.lvz)
     crust_shell = int(num_shells - 2)
     
     # plot temperate data over time as heat map
     plt.figure(1)
     plot = plt.imshow(T_data, aspect = 'auto')
+    plt.xlabel("Time (Iterations)")
+    plt.ylabel("Radius (Spherical Shells)")
     plt.axhline(inner_core_shell, color='black')
     plt.axhline(outer_core_shell, color='black')
     plt.axhline(inner_mantle_shell, color='black')
+    plt.axhline(trans_mantle_shell, color='black')
     plt.axhline(outer_mantle_shell, color='black')
+    plt.axhline(lvz_shell, color='black')
     plt.axhline(crust_shell, color='black')
     plt.axvline(eq_time, color='black')
-    plt.colorbar()
+    cbar = plt.colorbar()
+    cbar.ax.set_ylabel('Temperature (Kelvin)')
 
     return plot
 
@@ -281,7 +304,7 @@ def plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = 10):
     T_data=asarray([T_data[:, i] for i in xrange(0, T_data.shape[1], t_step)])
     T_data=asarray([T_data[j, :] for j in xrange(0, T_data.shape[0], r_step)])
 
-    print time.shape
+    #print time.shape
 
     radii = asarray([radii[i] for i in xrange(0, radii.shape[0], r_step)])
     time = asarray(range(0,time.shape[0], t_step))
@@ -290,6 +313,9 @@ def plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = 10):
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
+    ax.set_xlabel("Radius (Earth Radii)")
+    ax.set_ylabel("Time (Iterations)")
+    ax.set_zlabel("Temperature (Kelvin)")
     surf = ax.plot_surface(radii, time, T_data, rstride = 1, cstride = 15, cmap =cm.coolwarm)
     
     return surf
@@ -299,11 +325,21 @@ def plotTemperatureSurface(radii, time, T_data, r_step = 1, t_step = 10):
 ##Experiments##
 ###############
 
-#experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Earth_diffusivity')
+#experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000,  name = 'Earth_diffusivity')
 #experiment(mass = 0.055, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Mercury')
 #experiment(mass = 0.81, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Venus')
 #experiment(mass = 0.0123, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Moon')
 #experiment(mass = 0.107, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Mars')
 
-experiment(max_time = 10000)
+#experiment(max_time = 10000)
+
+
+experiment(mass = 0.5, base_num_shells = 250, max_time = 25000, init_core_temp = 7000)
+#experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000)
+#experiment(mass = 1.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Planet')
+#experiment(mass = 1.5, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Planet')
+#experiment(mass = 2.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Planet')
+#experiment(mass = 2.5, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Planet')
+#experiment(mass = 3.0, base_num_shells = 250, max_time = 25000, init_core_temp = 7000, name = 'Planet')
+#experiment(mass = 3.5, base_num_shells = 250, max_time = 40000, init_core_temp = 7000, name = 'Planet')
 
